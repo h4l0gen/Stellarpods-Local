@@ -1,0 +1,3 @@
+package constants
+
+var ENV_STELLARPODS_PORT = "STELLARPODS_PORT"
