@@ -11,6 +11,7 @@ func checkEnvVars() {
 	}
 }
 func main() {
+	isDockerInstalled()
 	checkEnvVars()
 	Execute()
 }
