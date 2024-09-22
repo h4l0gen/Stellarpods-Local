@@ -1,9 +1,9 @@
-package main
+package github
 
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"os"
 	"path/filepath"
 
@@ -11,70 +11,56 @@ import (
 	"golang.org/x/oauth2"
 )
 
-const (
-	owner         = "j4ck4l-24"    // repo owner
-	repo          = "testing_tool" // repo name
-	basePath      = "./"           //path to save files locally
-	dirToDownload = "test1"        // folder to download from repo
-)
+// DownloadChallengeFiles downloads CTF challenge files from a GitHub repository
+func DownloadChallengeFiles(token, owner, repo, dirToDownload, basePath string) error {
+    ctx := context.Background()
+    ts := oauth2.StaticTokenSource(&oauth2.Token{AccessToken: token})
+    tc := oauth2.NewClient(ctx, ts)
+    client := github.NewClient(tc)
 
-func main() {
-	token := os.Getenv("GITHUB_TOKEN")
-	if token == "" {
-		fmt.Println("GITHUB_TOKEN environment variable not set")
-		return
-	}
-
-	ctx := context.Background()
-	ts := oauth2.StaticTokenSource(&oauth2.Token{AccessToken: token})
-	tc := oauth2.NewClient(ctx, ts)
-	client := github.NewClient(tc)
-
-	getContents(ctx, client, dirToDownload)
+    return getContents(ctx, client, owner, repo, dirToDownload, basePath)
 }
 
-func getContents(ctx context.Context, client *github.Client, path string) {
-	opts := &github.RepositoryContentGetOptions{}
-	_, directoryContent, _, err := client.Repositories.GetContents(ctx, owner, repo, path, opts)
-	if err != nil {
-		fmt.Printf("Error getting contents: %s\n", err)
-		return
-	}
+func getContents(ctx context.Context, client *github.Client, owner, repo, path, basePath string) error {
+    opts := &github.RepositoryContentGetOptions{}
+    _, directoryContent, _, err := client.Repositories.GetContents(ctx, owner, repo, path, opts)
+    if err != nil {
+        return fmt.Errorf("error getting contents: %w", err)
+    }
 
-	for _, content := range directoryContent {
-		localPath := filepath.Join(basePath, *content.Path)
-		fmt.Println("Processing:", *content.Type, *content.Path)
+    for _, content := range directoryContent {
+        localPath := filepath.Join(basePath, *content.Path)
+        fmt.Println("Processing:", *content.Type, *content.Path)
+        if *content.Type == "file" {
+            if err := downloadFile(ctx, client, owner, repo, content, localPath); err != nil {
+                return err
+            }
+        } else if *content.Type == "dir" {
+            if err := getContents(ctx, client, owner, repo, *content.Path, basePath); err != nil {
+                return err
+            }
+        }
+    }
 
-		if *content.Type == "file" {
-			downloadFile(ctx, client, content, localPath)
-		} else if *content.Type == "dir" {
-			getContents(ctx, client, *content.Path)
-		}
-	}
+    return nil
 }
 
-func downloadFile(ctx context.Context, client *github.Client, content *github.RepositoryContent, localPath string) {
-	rc, err := client.Repositories.DownloadContents(ctx, owner, repo, *content.Path, nil)
-	if err != nil {
-		fmt.Printf("Error downloading file: %s\n", err)
-		return
-	}
-	defer rc.Close()
+func downloadFile(ctx context.Context, client *github.Client, owner, repo string, content *github.RepositoryContent, localPath string) error {
+    rc, err := client.Repositories.DownloadContents(ctx, owner, repo, *content.Path, nil)
+    if err != nil {
+        return fmt.Errorf("error downloading file: %w", err)
+    }
+    defer rc.Close()
 
-	data, err := ioutil.ReadAll(rc)
-	if err != nil {
-		fmt.Printf("Error reading content from repository: %s\n", err)
-		return
-	}
+    data, err := io.ReadAll(rc)
+    if err != nil {
+        return fmt.Errorf("error reading content from repository: %w", err)
+    }
 
-	if err = os.MkdirAll(filepath.Dir(localPath), 0755); err != nil {
-		fmt.Printf("Error creating directories: %s\n", err)
-		return
-	}
+    if err = os.MkdirAll(filepath.Dir(localPath), 0755); err != nil {
+        return fmt.Errorf("error creating directories: %w", err)
+    }
 
-	fmt.Println("Writing file:", localPath)
-	err = ioutil.WriteFile(localPath, data, 0644)
-	if err != nil {
-		fmt.Printf("Error writing file to disk: %s\n", err)
-	}
+    fmt.Println("Writing file:", localPath)
+    return os.WriteFile(localPath, data, 0644)
 }

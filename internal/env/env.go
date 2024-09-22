@@ -12,3 +12,4 @@ func CheckEnvVars() error {
 	}
 	return nil
 }
+
