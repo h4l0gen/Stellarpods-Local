@@ -1,0 +1,7 @@
+version: '3.8'
+
+services:
+  kurama:
+    build: .
+    ports:
+      - "4054:4054"

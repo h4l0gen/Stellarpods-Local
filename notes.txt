@@ -1,0 +1,10 @@
+dokcer image docker daemon m hi reh ja rhi h, isko minikube m transfer krna pdra h, 
+$ minikube image load ctf-challenge:latest
+
+to check it is load or not 
+$ minikube ssh docker images | grep ctf-challenge
+
+to monitor pod 
+$ kubectl get pods -n ctf-challenges -w
+
+image ka name specifically dena pdra h 
